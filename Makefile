@@ -147,10 +147,15 @@ build:
 
 .PHONY: restart
 restart:
+	cd $(BUILD_DIR); \
+	go build -o $(BIN_NAME)
 	sudo systemctl daemon-reload
 	sudo systemctl restart $(SERVICE_NAME)
 	sudo systemctl restart mysql
 	sudo systemctl restart nginx
+	sudo systemctl restart isuride-matcher.service
+	sudo rm /var/log/mysql/mysql-slow.log
+	sudo mysqladmin flush-logs
 
 .PHONY: mv-logs
 mv-logs:
