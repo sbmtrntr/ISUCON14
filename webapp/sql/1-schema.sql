@@ -44,6 +44,7 @@ CREATE TABLE chair_locations
   latitude   INTEGER     NOT NULL COMMENT '経度',
   longitude  INTEGER     NOT NULL COMMENT '緯度',
   created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) COMMENT '登録日時',
+  -- distance   INTEGER     NOT NULL DEFAULT  0,
   PRIMARY KEY (id)
 )
   COMMENT = '椅子の現在位置情報テーブル';
@@ -140,3 +141,36 @@ ALTER TABLE chair_locations ADD INDEX chair_id_idx(chair_id, created_at DESC);
 ALTER TABLE rides ADD INDEX chair_id_idx(chair_id, updated_at DESC);
 ALTER TABLE chairs ADD INDEX access_token_idx(access_token);
 ALTER TABLE coupons ADD INDEX used_by_idx(used_by);
+
+-- CREATE INDEX idx_chair_id_created_at ON chair_locations (chair_id, created_at);
+-- CREATE INDEX idx_owner_id ON chairs (owner_id);
+-- DROP TABLE IF EXISTS chair_distances;
+-- CREATE TABLE chair_distances (
+--     chair_id INT PRIMARY KEY,
+--     total_distance DOUBLE,
+--     total_distance_updated_at DATETIME
+-- );
+
+-- ALTER TABLE chair_locations ADD COLUMN distance INTEGER;
+
+-- DELIMITER $$
+
+-- CREATE TRIGGER insert_location
+-- BEFORE INSERT ON chair_locations
+-- FOR EACH ROW
+-- BEGIN
+-- SET NEW.distance = ABS(latitude - LAG(latitude) OVER (PARTITION BY chair_id ORDER BY created_at)) +
+--                    ABS(longitude - LAG(longitude) OVER (PARTITION BY chair_id ORDER BY created_at));
+-- END
+-- $$
+
+-- CREATE TRIGGER update_location
+-- BEFORE UPDATE ON chair_locations
+-- FOR EACH ROW
+-- BEGIN
+-- SET NEW.distance = ABS(latitude - LAG(latitude) OVER (PARTITION BY chair_id ORDER BY created_at)) +
+--                    ABS(longitude - LAG(longitude) OVER (PARTITION BY chair_id ORDER BY created_at));
+-- END
+-- $$
+
+-- DELIMITER ;
