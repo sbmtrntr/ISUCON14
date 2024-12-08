@@ -10,6 +10,8 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
+	_ "net/http/pprof"
+	"log"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -20,6 +22,9 @@ import (
 var db *sqlx.DB
 
 func main() {
+	go func() {
+		log.Fatal(http.ListenAndServe(":6060", nil))
+	}()
 	mux := setup()
 	slog.Info("Listening on :8080")
 	http.ListenAndServe(":8080", mux)
