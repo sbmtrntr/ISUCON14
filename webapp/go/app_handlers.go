@@ -763,11 +763,32 @@ func appGetNotification(w http.ResponseWriter, r *http.Request) {
 func getChairStats(ctx context.Context, tx *sqlx.Tx, chairID string) (appGetNotificationResponseChairStats, error) {
 	stats := appGetNotificationResponseChairStats{}
 
-	rides := []Ride{}
+	type RideInfo struct {
+		Evaluation   *float64   `db:"evaluation"`
+		RideID       string     `db:"ride_id"`
+		ArrivedAt    *time.Time `db:"arrived_at"`
+		PickupedAt   *time.Time `db:"pickuped_at"`
+		IsCompleted  bool       `db:"is_completed"`
+	}
+
+	ridesInfo := []RideInfo{}
 	err := tx.SelectContext(
 		ctx,
-		&rides,
-		`SELECT * FROM rides WHERE chair_id = ? ORDER BY updated_at DESC`,
+		&ridesInfo,
+		`
+		SELECT 
+			rides.evaluation,
+			rides.id AS ride_id,
+			MAX(CASE WHEN ride_statuses.status = 'ARRIVED' THEN ride_statuses.created_at END) AS arrived_at,
+			MAX(CASE WHEN ride_statuses.status = 'CARRYING' THEN ride_statuses.created_at END) AS pickuped_at,
+			EXISTS (
+				SELECT 1 FROM ride_statuses WHERE ride_statuses.ride_id = rides.id AND ride_statuses.status = 'COMPLETED'
+			) AS is_completed
+		FROM rides
+		LEFT JOIN ride_statuses ON rides.id = ride_statuses.ride_id
+		WHERE rides.chair_id = ?
+		GROUP BY rides.id, rides.evaluation
+		`,
 		chairID,
 	)
 	if err != nil {
@@ -776,39 +797,15 @@ func getChairStats(ctx context.Context, tx *sqlx.Tx, chairID string) (appGetNoti
 
 	totalRideCount := 0
 	totalEvaluation := 0.0
-	for _, ride := range rides {
-		rideStatuses := []RideStatus{}
-		err = tx.SelectContext(
-			ctx,
-			&rideStatuses,
-			`SELECT * FROM ride_statuses WHERE ride_id = ? ORDER BY created_at`,
-			ride.ID,
-		)
-		if err != nil {
-			return stats, err
-		}
 
-		var arrivedAt, pickupedAt *time.Time
-		var isCompleted bool
-		for _, status := range rideStatuses {
-			if status.Status == "ARRIVED" {
-				arrivedAt = &status.CreatedAt
-			} else if status.Status == "CARRYING" {
-				pickupedAt = &status.CreatedAt
-			}
-			if status.Status == "COMPLETED" {
-				isCompleted = true
-			}
-		}
-		if arrivedAt == nil || pickupedAt == nil {
+	for _, ride := range ridesInfo {
+		if ride.ArrivedAt == nil || ride.PickupedAt == nil || !ride.IsCompleted {
 			continue
 		}
-		if !isCompleted {
-			continue
-		}
-
 		totalRideCount++
-		totalEvaluation += float64(*ride.Evaluation)
+		if ride.Evaluation != nil {
+			totalEvaluation += *ride.Evaluation
+		}
 	}
 
 	stats.TotalRidesCount = totalRideCount
@@ -818,6 +815,65 @@ func getChairStats(ctx context.Context, tx *sqlx.Tx, chairID string) (appGetNoti
 
 	return stats, nil
 }
+
+// func getChairStats(ctx context.Context, tx *sqlx.Tx, chairID string) (appGetNotificationResponseChairStats, error) {
+// 	stats := appGetNotificationResponseChairStats{}
+
+// 	rides := []Ride{}
+// 	err := tx.SelectContext(
+// 		ctx,
+// 		&rides,
+// 		`SELECT * FROM rides WHERE chair_id = ? ORDER BY updated_at DESC`,
+// 		chairID,
+// 	)
+// 	if err != nil {
+// 		return stats, err
+// 	}
+
+// 	totalRideCount := 0
+// 	totalEvaluation := 0.0
+// 	for _, ride := range rides {
+// 		rideStatuses := []RideStatus{}
+// 		err = tx.SelectContext(
+// 			ctx,
+// 			&rideStatuses,
+// 			`SELECT * FROM ride_statuses WHERE ride_id = ? ORDER BY created_at`,
+// 			ride.ID,
+// 		)
+// 		if err != nil {
+// 			return stats, err
+// 		}
+
+// 		var arrivedAt, pickupedAt *time.Time
+// 		var isCompleted bool
+// 		for _, status := range rideStatuses {
+// 			if status.Status == "ARRIVED" {
+// 				arrivedAt = &status.CreatedAt
+// 			} else if status.Status == "CARRYING" {
+// 				pickupedAt = &status.CreatedAt
+// 			}
+// 			if status.Status == "COMPLETED" {
+// 				isCompleted = true
+// 			}
+// 		}
+// 		if arrivedAt == nil || pickupedAt == nil {
+// 			continue
+// 		}
+// 		if !isCompleted {
+// 			continue
+// 		}
+
+// 		totalRideCount++
+// 		totalEvaluation += float64(*ride.Evaluation)
+// 	}
+
+// 	stats.TotalRidesCount = totalRideCount
+// 	if totalRideCount > 0 {
+// 		stats.TotalEvaluationAvg = totalEvaluation / float64(totalRideCount)
+// 	}
+
+// 	return stats, nil
+// }
 
 type appGetNearbyChairsResponse struct {
 	Chairs      []appGetNearbyChairsResponseChair `json:"chairs"`
