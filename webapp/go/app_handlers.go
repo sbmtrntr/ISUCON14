@@ -78,7 +78,7 @@ func appPostUsers(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusInternalServerError, err)
 			return
 		}
-		if len(coupons) >= 3 {
+		if len(coupons) >= 4 {
 			writeError(w, http.StatusBadRequest, errors.New("この招待コードは使用できません。"))
 			return
 		}
@@ -673,7 +673,7 @@ func appGetNotification(w http.ResponseWriter, r *http.Request) {
 	if err := tx.GetContext(ctx, ride, `SELECT * FROM rides WHERE user_id = ? ORDER BY created_at DESC LIMIT 1`, user.ID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			writeJSON(w, http.StatusOK, &appGetNotificationResponse{
-				RetryAfterMs: 30,
+				RetryAfterMs: 1000,
 			})
 			return
 		}
@@ -720,7 +720,7 @@ func appGetNotification(w http.ResponseWriter, r *http.Request) {
 			CreatedAt: ride.CreatedAt.UnixMilli(),
 			UpdateAt:  ride.UpdatedAt.UnixMilli(),
 		},
-		RetryAfterMs: 30,
+		RetryAfterMs: 1000,
 	}
 
 	if ride.ChairID.Valid {
@@ -776,7 +776,7 @@ func getChairStats(ctx context.Context, tx *sqlx.Tx, chairID string) (appGetNoti
 		ctx,
 		&ridesInfo,
 		`
-		SELECT 
+		SELECT
 			rides.evaluation,
 			rides.id AS ride_id,
 			MAX(CASE WHEN ride_statuses.status = 'ARRIVED' THEN ride_statuses.created_at END) AS arrived_at,
